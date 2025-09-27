@@ -1,29 +1,40 @@
-name: Simple Test
+name: Simple Android Build
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
+    
     steps:
     - uses: actions/checkout@v4
     
-    - name: Create minimal files
+    - name: Setup environment
       run: |
-        # ملفات Gradle الأساسية فقط
-        echo "buildscript { repositories { google(); mavenCentral() } dependencies { classpath 'com.android.tools.build:gradle:8.1.0' } }" > build.gradle
-        echo "include ':app'" > settings.gradle
-        
-        mkdir -p app/src/main/java/com/test
-        mkdir -p app/src/main/res/layout
-        
-        echo "plugins { id 'com.android.application' } android { compileSdk 33 defaultConfig { applicationId 'com.test' minSdk 21 } }" > app/build.gradle
-        echo "<manifest package=\"com.test\"><application><activity android:name=\".MainActivity\"><intent-filter><action android:name=\"android.intent.action.MAIN\"/></intent-filter></activity></application></manifest>" > app/src/main/AndroidManifest.xml
-        echo "package com.test; public class MainActivity { }" > app/src/main/java/com/test/MainActivity.java
-        echo "<LinearLayout><TextView text=\"Hello\"/></LinearLayout>" > app/src/main/res/layout/activity_main.xml
-
-    - name: Try build
-      run: |
+        # تثبيت Gradle
         wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
         unzip -q gradle-8.4-bin.zip
-        ./gradle-8.4/bin/gradle :app:assembleDebug || echo "Build attempted"
+        
+        # إنشاء الملفات الأساسية باستخدام echo
+        echo "buildscript { repositories { google(); mavenCentral() } dependencies { classpath 'com.android.tools.build:gradle:8.1.0' } } allprojects { repositories { google(); mavenCentral() } }" > build.gradle
+        echo "include ':app'" > settings.gradle
+        
+        mkdir -p app/src/main/java/com/evozi/slowudp
+        mkdir -p app/src/main/res/layout
+        
+        echo "plugins { id 'com.android.application' } android { compileSdk 33 defaultConfig { applicationId 'com.evozi.slowudp' minSdk 21 } } dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }" > app/build.gradle
+        echo '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.evozi.slowudp"><application><activity android:name=".MainActivity"><intent-filter><action android:name="android.intent.action.MAIN"/></intent-filter></activity></application></manifest>' > app/src/main/AndroidManifest.xml
+        echo 'package com.evozi.slowudp; public class MainActivity { }' > app/src/main/java/com/evozi/slowudp/MainActivity.java
+        echo '<?xml version="1.0" encoding="utf-8"?><LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"><TextView android:text="Hello"/></LinearLayout>' > app/src/main/res/layout/activity_main.xml
+
+    - name: Build app
+      run: |
+        ./gradle-8.4/bin/gradle :app:assembleDebug --stacktrace
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
