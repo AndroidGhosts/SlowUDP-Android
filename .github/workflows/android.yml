@@ -22,23 +22,44 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Validate project structure
+    - name: Install Gradle
       run: |
-        echo "Checking project files..."
-        ls -la
-        echo "=== gradle/ ==="
-        ls -la gradle/ || echo "gradle/ not found"
-        echo "=== app/ ==="
-        ls -la app/ || echo "app/ not found"
+        wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
+        unzip -q gradle-8.4-bin.zip
+        export GRADLE_HOME=$PWD/gradle-8.4
+        export PATH=$GRADLE_HOME/bin:$PATH
+        echo "GRADLE_HOME=$GRADLE_HOME" >> $GITHUB_ENV
+        echo "$GRADLE_HOME/bin" >> $GITHUB_PATH
 
-    - name: Build with Gradle (Debug)
+    - name: Validate project
       run: |
-        chmod +x ./gradlew
-        ./gradlew :app:assembleDebug --stacktrace --no-daemon
+        echo "=== Project Structure ==="
+        find . -type f -name "*.gradle" -o -name "AndroidManifest.xml" | sort
+        echo "=== Checking essential files ==="
+        [ -f "build.gradle" ] && echo "✓ build.gradle exists" || echo "✗ build.gradle missing"
+        [ -f "settings.gradle" ] && echo "✓ settings.gradle exists" || echo "✗ settings.gradle missing"
+        [ -f "app/build.gradle" ] && echo "✓ app/build.gradle exists" || echo "✗ app/build.gradle missing"
+        [ -f "app/src/main/AndroidManifest.xml" ] && echo "✓ AndroidManifest.xml exists" || echo "✗ AndroidManifest.xml missing"
+
+    - name: Build with Gradle
+      run: |
+        gradle --version
+        gradle :app:assembleDebug --stacktrace --no-daemon
+
+    - name: Check build output
+      run: |
+        if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+          echo "✓ Build successful! APK generated."
+          ls -la app/build/outputs/apk/debug/
+        else
+          echo "✗ Build failed - no APK generated"
+          find app/build/ -name "*.log" -o -name "*.txt" | head -5 | xargs cat || true
+        fi
 
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: slowudp-debug
+        name: slowudp-app
         path: app/build/outputs/apk/debug/app-debug.apk
         retention-days: 7
