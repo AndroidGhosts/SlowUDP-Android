@@ -1,8 +1,9 @@
-name: Simple Android Build
+name: Android Build
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,20 +22,23 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Install Gradle directly
+    - name: Validate project structure
       run: |
-        wget https://services.gradle.org/distributions/gradle-8.4-bin.zip
-        unzip gradle-8.4-bin.zip
-        echo "GRADLE_HOME=$PWD/gradle-8.4" >> $GITHUB_ENV
-        echo "$PWD/gradle-8.4/bin" >> $GITHUB_PATH
+        echo "Checking project files..."
+        ls -la
+        echo "=== gradle/ ==="
+        ls -la gradle/ || echo "gradle/ not found"
+        echo "=== app/ ==="
+        ls -la app/ || echo "app/ not found"
 
-    - name: Build with Gradle
+    - name: Build with Gradle (Debug)
       run: |
-        gradle assembleDebug --stacktrace
+        chmod +x ./gradlew
+        ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: slowudp-app
+        name: slowudp-debug
         path: app/build/outputs/apk/debug/app-debug.apk
         retention-days: 7
