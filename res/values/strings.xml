@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">SlowUDP Manager</string>
+    <string name="server_settings">إعدادات الخادم</string>
+    <string name="install_slowudp">تثبيت SlowUDP</string>
+    <string name="start">بدء</string>
+    <string name="stop">إيقاف</string>
+    <string name="status">الحالة</string>
+    <string name="show_config">عرض التكوين</string>
+    <string name="output">المخرجات</string>
+</resources>
