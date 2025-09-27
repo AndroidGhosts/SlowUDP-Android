@@ -31,29 +31,47 @@ jobs:
         echo "GRADLE_HOME=$GRADLE_HOME" >> $GITHUB_ENV
         echo "$GRADLE_HOME/bin" >> $GITHUB_PATH
 
-    - name: Validate project
+    - name: Validate Project Structure
       run: |
-        echo "=== Project Structure ==="
-        find . -type f -name "*.gradle" -o -name "AndroidManifest.xml" | sort
-        echo "=== Checking essential files ==="
-        [ -f "build.gradle" ] && echo "✓ build.gradle exists" || echo "✗ build.gradle missing"
-        [ -f "settings.gradle" ] && echo "✓ settings.gradle exists" || echo "✗ settings.gradle missing"
-        [ -f "app/build.gradle" ] && echo "✓ app/build.gradle exists" || echo "✗ app/build.gradle missing"
-        [ -f "app/src/main/AndroidManifest.xml" ] && echo "✓ AndroidManifest.xml exists" || echo "✗ AndroidManifest.xml missing"
+        echo "=== Checking Essential Files ==="
+        
+        # الملفات الإلزامية
+        MUST_HAVE_FILES=(
+          "build.gradle"
+          "settings.gradle" 
+          "app/build.gradle"
+          "app/src/main/AndroidManifest.xml"
+          "app/src/main/java/com/evozi/slowudp/MainActivity.java"
+        )
+        
+        for file in "${MUST_HAVE_FILES[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✓ $file"
+          else
+            echo "✗ $file - MISSING!"
+          fi
+        done
+        
+        echo ""
+        echo "=== Project Tree ==="
+        find . -name "*.java" -o -name "*.xml" -o -name "*.gradle" | head -20
 
     - name: Build with Gradle
       run: |
         gradle --version
+        echo "Starting build..."
         gradle :app:assembleDebug --stacktrace --no-daemon
 
-    - name: Check build output
+    - name: Check Build Results
       run: |
         if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-          echo "✓ Build successful! APK generated."
+          echo "🎉 BUILD SUCCESSFUL!"
+          echo "APK size: $(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)"
           ls -la app/build/outputs/apk/debug/
         else
-          echo "✗ Build failed - no APK generated"
-          find app/build/ -name "*.log" -o -name "*.txt" | head -5 | xargs cat || true
+          echo "❌ BUILD FAILED"
+          echo "=== Build logs ==="
+          find app/build/ -name "*.log" | head -3 | xargs cat || true
         fi
 
     - name: Upload APK
@@ -62,4 +80,4 @@ jobs:
       with:
         name: slowudp-app
         path: app/build/outputs/apk/debug/app-debug.apk
-        retention-days: 7
+        retention-days: 30
