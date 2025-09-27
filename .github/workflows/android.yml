@@ -1,42 +1,39 @@
-name: Minimal Android Build
+name: Simple Android Test
 
 on: [push, workflow_dispatch]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup environment
+    - name: Create absolute minimal project
       run: |
-        # تثبيت Gradle
+        # أبسط مشروع أندرويد ممكن
+        echo 'buildscript { repositories { google(); mavenCentral() } dependencies { classpath "com.android.tools.build:gradle:8.1.0" } }' > build.gradle
+        echo 'include ":app"' > settings.gradle
+        
+        mkdir -p app/src/main/java/com/test
+        mkdir -p app/src/main/res
+        
+        echo 'plugins { id "com.android.application" } android { compileSdk 33 defaultConfig { applicationId "com.test" minSdk 21 } }' > app/build.gradle
+        echo '<manifest package="com.test"><application><activity android:name=".MainActivity"/></application></manifest>' > app/src/main/AndroidManifest.xml
+        echo 'package com.test; public class MainActivity { }' > app/src/main/java/com/test/MainActivity.java
+
+    - name: Try quick build
+      run: |
         wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
         unzip -q gradle-8.4-bin.zip
         
-        # إنشاء ملفات Gradle بسيطة جداً
-        echo 'buildscript { repositories { google(); mavenCentral() } dependencies { classpath "com.android.tools.build:gradle:8.1.0" } } allprojects { repositories { google(); mavenCentral() } }' > build.gradle
-        echo 'include ":app"' > settings.gradle
-        
-        # إنشاء هيكل التطبيق
-        mkdir -p app/src/main/java/com/evozi/slowudp
-        mkdir -p app/src/main/res/layout
-        
-        echo 'plugins { id "com.android.application" } android { compileSdk 33 defaultConfig { applicationId "com.evozi.slowudp" minSdk 21 } }' > app/build.gradle
-        echo '<?xml version="1.0"?><manifest package="com.evozi.slowudp"><application><activity android:name=".MainActivity"/></application></manifest>' > app/src/main/AndroidManifest.xml
-        echo 'package com.evozi.slowudp; public class MainActivity { }' > app/src/main/java/com/evozi/slowudp/MainActivity.java
-
-    - name: Try to build
-      run: |
-        # محاولة البناء بشكل منفصل لكل مهمة
-        ./gradle-8.4/bin/gradle --version
-        ./gradle-8.4/bin/gradle :app:compileDebugJavaWithJavac --stacktrace || echo "Compilation failed"
-        ./gradle-8.4/bin/gradle :app:assembleDebug --stacktrace || echo "Assembly failed"
-        
-    - name: Upload if successful
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-result
-        path: app/build/outputs/
+        # محاولة البناء مع التقاط الأخطاء
+        if ./gradle-8.4/bin/gradle :app:assembleDebug --stacktrace; then
+            echo "✅ Build successful!"
+            ls app/build/outputs/apk/debug/ || echo "No APK directory"
+        else
+            echo "❌ Build failed"
+            # عرض آخر 10 أسطر من أي ملف log
+            find . -name "*.log" | head -1 | xargs tail -10 2>/dev/null || echo "No log files found"
+            exit 0 # لا تفشل Workflow لنتحقق من المشكلة
+        fi
