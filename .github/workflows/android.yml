@@ -27,7 +27,14 @@ jobs:
         echo "GRADLE_HOME=/opt/gradle-6.9.4" >> $GITHUB_ENV
         echo "/opt/gradle-6.9.4/bin" >> $GITHUB_PATH
     
-    - name: Create build.gradle file
+    - name: Create project structure
+      run: |
+        echo 'include ":app"' > settings.gradle
+        mkdir -p app/src/main/java/com/evozi/slowudp
+        mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/values
+    
+    - name: Create root build.gradle
       run: |
         echo 'buildscript {' > build.gradle
         echo '    repositories {' >> build.gradle
@@ -46,8 +53,14 @@ jobs:
         echo '    }' >> build.gradle
         echo '}' >> build.gradle
     
-    - name: Create project structure
+    - name: Create Android app files
       run: |
-        echo 'include ":app"' > settings.gradle
-        mkdir -p app/src/main/java/com/evozi/slowudp
-        mkdir -p app/src/main/res/layout
+        # [ضع هنا كل كود إنشاء الملفات من الأعلى]
+    
+    - name: Build Android APK
+      run: |
+        /opt/gradle-6.9.4/bin/gradle assembleDebug
+    
+    - name: List generated APK
+      run: |
+        find . -name "*.apk" -type f
