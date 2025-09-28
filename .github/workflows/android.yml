@@ -1,39 +1,221 @@
-name: Simple Android Test
+name: Android APK Builder
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
-    - name: Create absolute minimal project
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'  # استخدام Java 11 الأكثر استقراراً
+        distribution: 'temurin'
+        
+    - name: Setup Android
+      uses: android-actions/setup-android@v3
+      
+    - name: Install Gradle 7.6 (Stable)
       run: |
-        # أبسط مشروع أندرويد ممكن
-        echo 'buildscript { repositories { google(); mavenCentral() } dependencies { classpath "com.android.tools.build:gradle:8.1.0" } }' > build.gradle
-        echo 'include ":app"' > settings.gradle
-        
-        mkdir -p app/src/main/java/com/test
-        mkdir -p app/src/main/res
-        
-        echo 'plugins { id "com.android.application" } android { compileSdk 33 defaultConfig { applicationId "com.test" minSdk 21 } }' > app/build.gradle
-        echo '<manifest package="com.test"><application><activity android:name=".MainActivity"/></application></manifest>' > app/src/main/AndroidManifest.xml
-        echo 'package com.test; public class MainActivity { }' > app/src/main/java/com/test/MainActivity.java
+        wget -q https://services.gradle.org/distributions/gradle-7.6-bin.zip
+        unzip -q gradle-7.6-bin.zip
+        export GRADLE_HOME=$PWD/gradle-7.6
+        export PATH=$GRADLE_HOME/bin:$PATH
 
-    - name: Try quick build
+    - name: Create guaranteed APK project
       run: |
-        wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
-        unzip -q gradle-8.4-bin.zip
+        echo "🎯 Creating Android project that definitely generates APK..."
         
-        # محاولة البناء مع التقاط الأخطاء
-        if ./gradle-8.4/bin/gradle :app:assembleDebug --stacktrace; then
-            echo "✅ Build successful!"
-            ls app/build/outputs/apk/debug/ || echo "No APK directory"
+        # 1. build.gradle بإصدار مستقر
+        cat > build.gradle << 'EOF'
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:7.4.2"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+EOF
+
+        # 2. settings.gradle
+        echo 'include ":app"' > settings.gradle
+
+        # 3. إنشاء هيكل المشروع
+        mkdir -p app/src/main/java/com/evozi/slowudp
+        mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/values
+
+        # 4. app/build.gradle يضمن إنشاء APK
+        cat > app/build.gradle << 'EOF'
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 33
+    namespace 'com.evozi.slowudp'
+    
+    defaultConfig {
+        applicationId "com.evozi.slowudp"
+        minSdk 16  # إصدار منخفض لضمان التوافق
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+    
+    buildTypes {
+        debug {
+            minifyEnabled false
+            shrinkResources false
+            debuggable true
+            signingConfig signingConfigs.debug
+        }
+    }
+    
+    // تأكيد إنشاء APK
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "app-${variant.name}.apk"
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.3.1'  # إصدار مستقر
+}
+EOF
+
+        # 5. AndroidManifest.xml أساسي
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.evozi.slowudp">
+
+    <application
+        android:allowBackup="true"
+        android:label="SlowUDP">
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+EOF
+
+        # 6. MainActivity.java بسيط
+        cat > app/src/main/java/com/evozi/slowudp/MainActivity.java << 'EOF'
+package com.evozi.slowudp;
+import android.app.Activity;
+import android.os.Bundle;
+public class MainActivity extends Activity {
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+    }
+}
+EOF
+
+        # 7. موارد أساسية
+        echo '<resources><string name="app_name">SlowUDP</string></resources>' > app/src/main/res/values/strings.xml
+        echo '<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"/>' > app/src/main/res/layout/activity_main.xml
+
+        echo "✅ Project structure created!"
+
+    - name: Build with APK guarantee
+      run: |
+        echo "🔨 Building APK with guaranteed output..."
+        
+        # تنظيف أي بناء سابق
+        ./gradle-7.6/bin/gradle clean --project-dir=.
+        
+        # البناء مع تفاصيل كاملة
+        ./gradle-7.6/bin/gradle :app:assembleDebug --project-dir=. --stacktrace --info
+        
+        echo "📊 Verifying build outputs..."
+
+    - name: Find and verify APK
+      run: |
+        echo "🔍 Searching for APK files..."
+        
+        # البحث في جميع المواقع الممكنة لملفات APK
+        find . -name "*.apk" -type f | while read apk; do
+            echo "🎉 FOUND APK: $apk"
+            ls -lh "$apk"
+            echo "📱 APK size: $(du -h "$apk" | cut -f1)"
+            echo "---"
+        done
+        
+        # إذا لم يعثر على APK، نتحقق بالتفصيل
+        if [ -z "$(find . -name "*.apk" -type f)" ]; then
+            echo "❌ No APK files found. Investigating..."
+            echo "📁 Build directory contents:"
+            ls -la app/build/ || echo "No build directory"
+            echo ""
+            echo "📦 Outputs directory:"
+            ls -la app/build/outputs/ 2>/dev/null || echo "No outputs directory"
+            echo ""
+            echo "🔧 Checking what was actually built:"
+            find app/build/ -type f -name "*.jar" -o -name "*.dex" -o -name "*.class" | head -10
+            echo ""
+            echo "📋 Build results JSON:"
+            find app/build/ -name "output-metadata.json" -o -name "build-info.json" | head -2 | while read f; do
+                echo "=== $f ==="
+                cat "$f" 2>/dev/null || echo "Cannot read"
+            done
         else
-            echo "❌ Build failed"
-            # عرض آخر 10 أسطر من أي ملف log
-            find . -name "*.log" | head -1 | xargs tail -10 2>/dev/null || echo "No log files found"
-            exit 0 # لا تفشل Workflow لنتحقق من المشكلة
+            echo "✅ APK verification successful!"
         fi
+
+    - name: Force APK generation with different method
+      if: always()
+      run: |
+        echo "🔄 Trying alternative build method..."
+        
+        # طريقة بديلة لبناء APK
+        ./gradle-7.6/bin/gradle :app:build --project-dir=. || echo "Build command failed"
+        ./gradle-7.6/bin/gradle :app:packageDebug --project-dir=. || echo "Package command failed"
+        
+        # البحث مرة أخرى
+        find . -name "*.apk" -type f | while read apk; do
+            echo "📱 Alternative method found: $apk"
+            ls -lh "$apk"
+        done || echo "No APK from alternative method"
+
+    - name: Upload ANY found APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk-results
+        path: |
+          **/*.apk
+        if-no-files-found: warn
+        retention-days: 30
+
+    - name: Upload complete build analysis
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-analysis-complete
+        path: |
+          app/build/
+        if-no-files-found: ignore
+        retention-days: 7
