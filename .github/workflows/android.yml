@@ -1,4 +1,4 @@
-name: Test APK Build
+name: Safe APK Build
 
 on: [push]
 
@@ -9,29 +9,35 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Create minimal project
+    - name: Setup project
       run: |
-        # تثبيت Gradle
         wget -q https://services.gradle.org/distributions/gradle-7.5.1-bin.zip
         unzip -q gradle-7.5.1-bin.zip
         
-        # ملفات Gradle الأساسية
-        echo 'buildscript { dependencies { classpath "com.android.tools.build:gradle:7.3.1" } }' > build.gradle
+        # ملفات Gradle الأساسية في سطر واحد
+        echo 'buildscript { dependencies { classpath "com.android.tools.build:gradle:7.3.1" } } allprojects { repositories { google() mavenCentral() } }' > build.gradle
         echo 'include ":app"' > settings.gradle
         
-        # هيكل التطبيق
-        mkdir -p app/src/main/java/com/test
-        echo 'android { compileSdk 31 }' > app/build.gradle
-        echo '<manifest package="com.test"/>' > app/src/main/AndroidManifest.xml
-        echo 'package com.test;' > app/src/main/java/com/test/MainActivity.java
-
-    - name: Try build
-      run: |
-        ./gradle-7.5.1/bin/gradle :app:assembleDebug || echo "Build attempted"
+        # هيكل التطبيق الأساسي
+        mkdir -p app/src/main/java/com/evozi/slowudp
         
-    - name: Upload anything found
+        # app/build.gradle في سطر واحد
+        echo 'plugins { id "com.android.application" } android { compileSdk 33 defaultConfig { applicationId "com.evozi.slowudp" minSdk 21 } } dependencies { implementation "androidx.appcompat:appcompat:1.6.1" }' > app/build.gradle
+        
+        # أبسط AndroidManifest ممكن
+        echo '<manifest package="com.evozi.slowudp"><application><activity android:name=".MainActivity"><intent-filter><action android:name="android.intent.action.MAIN"/></intent-filter></activity></application></manifest>' > app/src/main/AndroidManifest.xml
+        
+        # أبسط MainActivity ممكن
+        echo 'package com.evozi.slowudp; public class MainActivity { }' > app/src/main/java/com/evozi/slowudp/MainActivity.java
+
+    - name: Build and check
+      run: |
+        ./gradle-7.5.1/bin/gradle :app:assembleDebug --stacktrace
+        find . -name "*.apk" && echo "APK found" || echo "No APK"
+
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: test-results
-        path: app/build/
+        name: output
+        path: app/build/outputs/
         if-no-files-found: ignore
