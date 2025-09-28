@@ -19,6 +19,17 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
+    - name: Install Android SDK
+      run: |
+        # تحميل وتثبيت Android SDK Command Line Tools
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-8092744_latest.zip
+        mkdir -p android-sdk/cmdline-tools
+        unzip -q commandlinetools-linux-8092744_latest.zip -d android-sdk/cmdline-tools/
+        mv android-sdk/cmdline-tools/cmdline-tools android-sdk/cmdline-tools/latest
+        echo "ANDROID_HOME=$PWD/android-sdk" >> $GITHUB_ENV
+        echo "$PWD/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$PWD/android-sdk/platform-tools" >> $GITHUB_PATH
+    
     - name: Install Gradle 6.9.4
       run: |
         wget -q https://services.gradle.org/distributions/gradle-6.9.4-bin.zip
@@ -29,38 +40,150 @@ jobs:
     
     - name: Create project structure
       run: |
-        echo 'include ":app"' > settings.gradle
         mkdir -p app/src/main/java/com/evozi/slowudp
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
     
     - name: Create root build.gradle
       run: |
-        echo 'buildscript {' > build.gradle
-        echo '    repositories {' >> build.gradle
-        echo '        google()' >> build.gradle
-        echo '        jcenter()' >> build.gradle
-        echo '    }' >> build.gradle
-        echo '    dependencies {' >> build.gradle
-        echo '        classpath "com.android.tools.build:gradle:3.6.4"' >> build.gradle
-        echo '    }' >> build.gradle
-        echo '}' >> build.gradle
-        echo '' >> build.gradle
-        echo 'allprojects {' >> build.gradle
-        echo '    repositories {' >> build.gradle
-        echo '        google()' >> build.gradle
-        echo '        jcenter()' >> build.gradle
-        echo '    }' >> build.gradle
-        echo '}' >> build.gradle
+        cat > build.gradle << 'EOF'
+buildscript {
+    repositories {
+        google()
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.6.4'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        jcenter()
+    }
+}
+EOF
+
+        echo 'include ":app"' > settings.gradle
     
-    - name: Create Android app files
+    - name: Create app build.gradle
       run: |
-        # [ضع هنا كل كود إنشاء الملفات من الأعلى]
+        cat > app/build.gradle << 'EOF'
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 28
+    buildToolsVersion "29.0.2"
+
+    defaultConfig {
+        applicationId "com.evozi.slowudp"
+        minSdkVersion 16
+        targetSdkVersion 28
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+}
+EOF
     
-    - name: Build Android APK
+    - name: Create Android manifest
       run: |
-        /opt/gradle-6.9.4/bin/gradle assembleDebug
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.evozi.slowudp">
+
+    <application
+        android:allowBackup="true"
+        android:label="SlowUDP App"
+        android:theme="@style/AppTheme">
+        <activity
+            android:name=".MainActivity"
+            android:label="SlowUDP">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+EOF
     
-    - name: List generated APK
+    - name: Create MainActivity
       run: |
-        find . -name "*.apk" -type f
+        cat > app/src/main/java/com/evozi/slowudp/MainActivity.java << 'EOF'
+package com.evozi.slowudp;
+
+import android.app.Activity;
+import android.os.Bundle;
+
+public class MainActivity extends Activity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+    }
+}
+EOF
+    
+    - name: Create layout and resources
+      run: |
+        cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hello Android!"
+        android:textSize="24sp" />
+
+</LinearLayout>
+EOF
+
+        cat > app/src/main/res/values/strings.xml << 'EOF'
+<resources>
+    <string name="app_name">SlowUDP App</string>
+</resources>
+EOF
+
+        cat > app/src/main/res/values/styles.xml << 'EOF'
+<resources>
+    <style name="AppTheme" parent="android:Theme.Light">
+    </style>
+</resources>
+EOF
+    
+    - name: Debug before build
+      run: |
+        echo "=== Project Structure ==="
+        find . -name "*.gradle" -o -name "*.xml" -o -name "*.java" | sort
+        echo "=== Gradle Check ==="
+        /opt/gradle-6.9.4/bin/gradle --version
+        echo "=== Java Check ==="
+        java -version
+    
+    - name: Build with Gradle
+      run: |
+        /opt/gradle-6.9.4/bin/gradle tasks --info || echo "Gradle tasks failed"
+        /opt/gradle-6.9.4/bin/gradle assembleDebug --stacktrace
+    
+    - name: Check build results
+      run: |
+        find . -name "*.apk" -type f | head -5
+        ls -la app/build/outputs/apk/ || echo "APK directory not found"
