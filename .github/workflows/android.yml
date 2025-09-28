@@ -1,4 +1,4 @@
-name: Safe APK Build
+name: Simple Working Build
 
 on: [push]
 
@@ -9,35 +9,62 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup project
+    - name: Create minimal working project
       run: |
         wget -q https://services.gradle.org/distributions/gradle-7.5.1-bin.zip
         unzip -q gradle-7.5.1-bin.zip
         
-        # ملفات Gradle الأساسية في سطر واحد
-        echo 'buildscript { dependencies { classpath "com.android.tools.build:gradle:7.3.1" } } allprojects { repositories { google() mavenCentral() } }' > build.gradle
+        # build.gradle بسيط وصحيح
+        echo 'buildscript {' > build.gradle
+        echo '    repositories {' >> build.gradle
+        echo '        google()' >> build.gradle
+        echo '        mavenCentral()' >> build.gradle
+        echo '    }' >> build.gradle
+        echo '    dependencies {' >> build.gradle
+        echo '        classpath "com.android.tools.build:gradle:7.3.1"' >> build.gradle
+        echo '    }' >> build.gradle
+        echo '}' >> build.gradle
+        echo '' >> build.gradle
+        echo 'allprojects {' >> build.gradle
+        echo '    repositories {' >> build.gradle
+        echo '        google()' >> build.gradle
+        echo '        mavenCentral()' >> build.gradle
+        echo '    }' >> build.gradle
+        echo '}' >> build.gradle
+
         echo 'include ":app"' > settings.gradle
         
-        # هيكل التطبيق الأساسي
         mkdir -p app/src/main/java/com/evozi/slowudp
         
-        # app/build.gradle في سطر واحد
-        echo 'plugins { id "com.android.application" } android { compileSdk 33 defaultConfig { applicationId "com.evozi.slowudp" minSdk 21 } } dependencies { implementation "androidx.appcompat:appcompat:1.6.1" }' > app/build.gradle
-        
-        # أبسط AndroidManifest ممكن
-        echo '<manifest package="com.evozi.slowudp"><application><activity android:name=".MainActivity"><intent-filter><action android:name="android.intent.action.MAIN"/></intent-filter></activity></application></manifest>' > app/src/main/AndroidManifest.xml
-        
-        # أبسط MainActivity ممكن
+        # app/build.gradle بسيط وصحيح
+        echo 'plugins {' > app/build.gradle
+        echo '    id "com.android.application"' >> app/build.gradle
+        echo '}' >> app/build.gradle
+        echo '' >> app/build.gradle
+        echo 'android {' >> app/build.gradle
+        echo '    compileSdk 33' >> app/build.gradle
+        echo '    defaultConfig {' >> app/build.gradle
+        echo '        applicationId "com.evozi.slowudp"' >> app/build.gradle
+        echo '        minSdk 21' >> app/build.gradle
+        echo '        targetSdk 33' >> app/build.gradle
+        echo '    }' >> app/build.gradle
+        echo '}' >> app/build.gradle
+        echo '' >> app/build.gradle
+        echo 'dependencies {' >> app/build.gradle
+        echo '    implementation "androidx.appcompat:appcompat:1.6.1"' >> app/build.gradle
+        echo '}' >> app/build.gradle
+
+        echo '<manifest package="com.evozi.slowudp"><application><activity android:name=".MainActivity"/></application></manifest>' > app/src/main/AndroidManifest.xml
         echo 'package com.evozi.slowudp; public class MainActivity { }' > app/src/main/java/com/evozi/slowudp/MainActivity.java
 
-    - name: Build and check
+    - name: Build and verify
       run: |
-        ./gradle-7.5.1/bin/gradle :app:assembleDebug --stacktrace
-        find . -name "*.apk" && echo "APK found" || echo "No APK"
+        ./gradle-7.5.1/bin/gradle :app:assembleDebug --stacktrace --no-daemon
+        find . -name "*.apk" && echo "SUCCESS" || echo "FAILED"
 
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: output
+        name: results
         path: app/build/outputs/
         if-no-files-found: ignore
